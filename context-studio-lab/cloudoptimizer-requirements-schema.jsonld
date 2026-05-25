@@ -1,0 +1,647 @@
+{
+  "@context": {
+    "cco": "http://cloudoptimizer.example.org/schema#",
+    "schema": "http://schema.org/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "id": "@id",
+    "type": "@type",
+    "name": "schema:name",
+    "description": "schema:description",
+    "attributes": "cco:attributes",
+    "identityKey": "cco:identityKey",
+    "humanRef": "cco:humanRef",
+    "invariant": "cco:invariant",
+    "hasState": {
+      "@id": "cco:hasState",
+      "@type": "@id"
+    },
+    "initialState": {
+      "@id": "cco:initialState",
+      "@type": "@id"
+    },
+    "terminalStates": {
+      "@id": "cco:terminalStates",
+      "@type": "@id"
+    },
+    "relatesTo": {
+      "@id": "cco:relatesTo",
+      "@type": "@id"
+    },
+    "emitsEvent": {
+      "@id": "cco:emitsEvent",
+      "@type": "@id"
+    },
+    "from": {
+      "@id": "cco:from",
+      "@type": "@id"
+    },
+    "to": {
+      "@id": "cco:to",
+      "@type": "@id"
+    },
+    "precondition": "cco:precondition",
+    "postcondition": "cco:postcondition",
+    "Entity": "cco:Entity",
+    "Operation": "cco:Operation",
+    "State": "cco:State"
+  },
+  "@graph": [
+    {
+      "id": "cco:CloudResource",
+      "type": "Entity",
+      "name": "CloudResource",
+      "description": "A cloud infrastructure resource across AWS, Azure, or GCP that consumes cost and can be optimized",
+      "identityKey": "resourceId: UUID",
+      "humanRef": "resourceName",
+      "attributes": {
+        "resourceId": "string",
+        "resourceName": "string",
+        "provider": "AWS|Azure|GCP",
+        "resourceType": "VirtualMachine|Database|Storage|LoadBalancer|Network|Container|Function|Cache|Queue|Other",
+        "region": "string",
+        "monthlyCost": "decimal",
+        "cpuUtilization": "decimal",
+        "memoryUtilization": "decimal",
+        "storageUtilization": "decimal",
+        "daysIdle": "integer",
+        "lastAccessDate": "datetime",
+        "state": "Running|Stopped|Terminated",
+        "tags": "object"
+      },
+      "invariant": [
+        "resourceId must be unique",
+        "provider must be one of AWS, Azure, or GCP",
+        "resourceType must be one of defined types",
+        "monthlyCost must be non-negative",
+        "utilization percentages must be between 0 and 100"
+      ],
+      "hasState": [
+        "cco:ResourceActive",
+        "cco:ResourceIdle",
+        "cco:ResourceOversized",
+        "cco:ResourceStopped",
+        "cco:ResourceZombie",
+        "cco:ResourceTerminated"
+      ],
+      "initialState": "cco:ResourceActive",
+      "terminalStates": [
+        "cco:ResourceTerminated"
+      ],
+      "relatesTo": [
+        "cco:WasteAnalysis",
+        "cco:Recommendation",
+        "cco:CostReport"
+      ],
+      "emitsEvent": [
+        "cco:ResourceStateChanged",
+        "cco:WasteDetected",
+        "cco:CostThresholdExceeded"
+      ]
+    },
+    {
+      "id": "cco:WasteAnalysis",
+      "type": "Entity",
+      "name": "WasteAnalysis",
+      "description": "Analysis result identifying waste in cloud resources with potential savings calculations",
+      "identityKey": "analysisId: UUID",
+      "humanRef": "wasteCategory",
+      "attributes": {
+        "analysisId": "string",
+        "resourceId": "string",
+        "wasteCategory": "IdleResources|OversizedInstances|UnattachedVolumes|StoppedResources|ZombieResources|RedundantBackups",
+        "detectedDate": "datetime",
+        "monthlySavings": "decimal",
+        "annualSavings": "decimal",
+        "savingsPercentage": "decimal",
+        "confidence": "High|Medium|Low",
+        "detectionCriteria": "string",
+        "algorithmUsed": "string"
+      },
+      "invariant": [
+        "analysisId must be unique",
+        "resourceId must reference existing CloudResource",
+        "wasteCategory must be one of defined categories",
+        "savings must be non-negative",
+        "confidence must be High, Medium, or Low",
+        "savingsPercentage must be between 0 and 100"
+      ],
+      "hasState": [
+        "cco:WasteDetected",
+        "cco:WasteConfirmed",
+        "cco:WasteAddressed",
+        "cco:WasteFalsePositive"
+      ],
+      "initialState": "cco:WasteDetected",
+      "terminalStates": [
+        "cco:WasteAddressed",
+        "cco:WasteFalsePositive"
+      ],
+      "relatesTo": [
+        "cco:CloudResource",
+        "cco:Recommendation",
+        "cco:WasteDetectionAlgorithm"
+      ],
+      "emitsEvent": [
+        "cco:WasteConfirmed",
+        "cco:RecommendationGenerated"
+      ]
+    },
+    {
+      "id": "cco:Recommendation",
+      "type": "Entity",
+      "name": "Recommendation",
+      "description": "Actionable optimization recommendation with priority, effort, and ROI calculations",
+      "identityKey": "recommendationId: UUID",
+      "humanRef": "title",
+      "attributes": {
+        "recommendationId": "string",
+        "resourceId": "string",
+        "title": "string",
+        "description": "string",
+        "actionType": "Terminate|Downsize|Delete|Review|Schedule|Purchase|Migrate|Configure",
+        "priority": "High|Medium|Low",
+        "implementationEffort": "integer",
+        "monthlySavings": "decimal",
+        "annualSavings": "decimal",
+        "roi": "decimal",
+        "status": "Pending|InProgress|Implemented|Rejected|Deferred",
+        "createdDate": "datetime",
+        "implementedDate": "datetime|null",
+        "estimatedImplementationTime": "string"
+      },
+      "invariant": [
+        "recommendationId must be unique",
+        "resourceId must reference existing CloudResource",
+        "actionType must be one of defined types",
+        "priority must be High, Medium, or Low",
+        "implementationEffort must be between 1 and 5",
+        "savings must be non-negative",
+        "status must be one of defined values"
+      ],
+      "hasState": [
+        "cco:RecommendationPending",
+        "cco:RecommendationInProgress",
+        "cco:RecommendationImplemented",
+        "cco:RecommendationRejected",
+        "cco:RecommendationDeferred"
+      ],
+      "initialState": "cco:RecommendationPending",
+      "terminalStates": [
+        "cco:RecommendationImplemented",
+        "cco:RecommendationRejected"
+      ],
+      "relatesTo": [
+        "cco:CloudResource",
+        "cco:WasteAnalysis",
+        "cco:RecommendationRule"
+      ],
+      "emitsEvent": [
+        "cco:RecommendationImplemented",
+        "cco:SavingsRealized"
+      ]
+    },
+    {
+      "id": "cco:WasteDetectionAlgorithm",
+      "type": "Entity",
+      "name": "WasteDetectionAlgorithm",
+      "description": "Algorithm that analyzes resources to detect specific waste patterns",
+      "identityKey": "algorithmId: UUID",
+      "humanRef": "algorithmName",
+      "attributes": {
+        "algorithmId": "string",
+        "algorithmName": "string",
+        "wasteCategory": "string",
+        "detectionCriteria": "string",
+        "savingsCalculationFormula": "string",
+        "confidenceThreshold": "decimal",
+        "implementedIn": "string",
+        "version": "string"
+      },
+      "invariant": [
+        "algorithmId must be unique",
+        "algorithmName must be unique",
+        "detectionCriteria must be defined",
+        "savingsCalculationFormula must be valid",
+        "confidenceThreshold must be between 0 and 1"
+      ],
+      "relatesTo": [
+        "cco:WasteAnalysis",
+        "cco:CloudResource"
+      ]
+    },
+    {
+      "id": "cco:RecommendationRule",
+      "type": "Entity",
+      "name": "RecommendationRule",
+      "description": "Business rule that generates recommendations based on waste analysis",
+      "identityKey": "ruleId: UUID",
+      "humanRef": "ruleName",
+      "attributes": {
+        "ruleId": "string",
+        "ruleName": "string",
+        "actionType": "string",
+        "priorityLogic": "string",
+        "effortEstimation": "integer",
+        "savingsCalculation": "string",
+        "applicableWasteCategories": "array",
+        "implementedIn": "string"
+      },
+      "invariant": [
+        "ruleId must be unique",
+        "ruleName must be unique",
+        "actionType must be defined",
+        "effortEstimation must be between 1 and 5",
+        "applicableWasteCategories must not be empty"
+      ],
+      "relatesTo": [
+        "cco:Recommendation",
+        "cco:WasteAnalysis"
+      ]
+    },
+    {
+      "id": "cco:CostReport",
+      "type": "Entity",
+      "name": "CostReport",
+      "description": "Aggregated cost and savings report for a time period",
+      "identityKey": "reportId: UUID",
+      "humanRef": "reportName",
+      "attributes": {
+        "reportId": "string",
+        "reportName": "string",
+        "reportType": "Monthly|Quarterly|Annual|Custom",
+        "startDate": "datetime",
+        "endDate": "datetime",
+        "totalCost": "decimal",
+        "totalWaste": "decimal",
+        "potentialSavings": "decimal",
+        "realizedSavings": "decimal",
+        "wastePercentage": "decimal",
+        "resourceCount": "integer",
+        "providerBreakdown": "object"
+      },
+      "invariant": [
+        "reportId must be unique",
+        "endDate must be after startDate",
+        "all cost values must be non-negative",
+        "wastePercentage must be between 0 and 100"
+      ],
+      "relatesTo": [
+        "cco:CloudResource",
+        "cco:WasteAnalysis",
+        "cco:Recommendation"
+      ]
+    },
+    {
+      "id": "cco:Requirement",
+      "type": "Entity",
+      "name": "Requirement",
+      "description": "A functional or non-functional requirement for the Cloud Cost Optimizer system",
+      "identityKey": "requirementId: UUID",
+      "humanRef": "requirementCode",
+      "attributes": {
+        "requirementId": "string",
+        "requirementCode": "string",
+        "name": "string",
+        "description": "string",
+        "requirementType": "Functional|NonFunctional|Security|Performance|Integration",
+        "priority": "High|Medium|Low",
+        "status": "Draft|Approved|Implemented|Verified|Rejected",
+        "implementedBy": "array",
+        "usesModel": "array",
+        "apiEndpoints": "array",
+        "acceptanceCriteria": "array"
+      },
+      "invariant": [
+        "requirementCode must be unique",
+        "requirementType must be one of defined types",
+        "priority must be High, Medium, or Low",
+        "status must be one of defined values",
+        "acceptanceCriteria must not be empty for Functional requirements"
+      ],
+      "hasState": [
+        "cco:RequirementDraft",
+        "cco:RequirementApproved",
+        "cco:RequirementImplemented",
+        "cco:RequirementVerified",
+        "cco:RequirementRejected"
+      ],
+      "initialState": "cco:RequirementDraft",
+      "terminalStates": [
+        "cco:RequirementVerified",
+        "cco:RequirementRejected"
+      ],
+      "relatesTo": [
+        "cco:ServiceComponent",
+        "cco:APIEndpoint",
+        "cco:DataModel"
+      ]
+    },
+    {
+      "id": "cco:ServiceComponent",
+      "type": "Entity",
+      "name": "ServiceComponent",
+      "description": "A service component that implements business logic in the system",
+      "identityKey": "componentId: UUID",
+      "humanRef": "componentName",
+      "attributes": {
+        "componentId": "string",
+        "componentName": "string",
+        "description": "string",
+        "sourceFile": "string",
+        "responsibilities": "array",
+        "dependencies": "array"
+      },
+      "invariant": [
+        "componentName must be unique",
+        "sourceFile must exist",
+        "responsibilities must not be empty"
+      ],
+      "relatesTo": [
+        "cco:Requirement",
+        "cco:APIEndpoint",
+        "cco:DataModel"
+      ]
+    },
+    {
+      "id": "cco:APIEndpoint",
+      "type": "Entity",
+      "name": "APIEndpoint",
+      "description": "A REST API endpoint that exposes system functionality",
+      "identityKey": "endpointId: UUID",
+      "humanRef": "path",
+      "attributes": {
+        "endpointId": "string",
+        "path": "string",
+        "method": "GET|POST|PUT|DELETE|PATCH",
+        "controller": "string",
+        "description": "string",
+        "returnType": "string",
+        "parameters": "array"
+      },
+      "invariant": [
+        "path must be unique per method",
+        "method must be one of HTTP methods",
+        "controller must exist"
+      ],
+      "relatesTo": [
+        "cco:Requirement",
+        "cco:ServiceComponent",
+        "cco:DataModel"
+      ]
+    },
+    {
+      "id": "cco:DataModel",
+      "type": "Entity",
+      "name": "DataModel",
+      "description": "A data model or entity class in the system",
+      "identityKey": "modelId: UUID",
+      "humanRef": "modelName",
+      "attributes": {
+        "modelId": "string",
+        "modelName": "string",
+        "description": "string",
+        "sourceFile": "string",
+        "properties": "array",
+        "methods": "array"
+      },
+      "invariant": [
+        "modelName must be unique",
+        "sourceFile must exist",
+        "properties must not be empty"
+      ],
+      "relatesTo": [
+        "cco:Requirement",
+        "cco:ServiceComponent",
+        "cco:APIEndpoint"
+      ]
+    },
+    {
+      "id": "cco:AnalyzeResource",
+      "type": "Operation",
+      "name": "AnalyzeResource",
+      "description": "Analyzes a cloud resource to detect waste patterns",
+      "from": "cco:CloudResource",
+      "to": "cco:WasteAnalysis",
+      "precondition": [
+        "CloudResource must exist and be in Active or Idle state",
+        "Resource must have utilization metrics",
+        "WasteDetectionAlgorithm must be configured"
+      ],
+      "postcondition": [
+        "WasteAnalysis is created if waste is detected",
+        "Resource state may transition to Idle, Oversized, or Zombie",
+        "WasteDetected event is emitted if applicable"
+      ]
+    },
+    {
+      "id": "cco:GenerateRecommendation",
+      "type": "Operation",
+      "name": "GenerateRecommendation",
+      "description": "Generates an actionable recommendation based on waste analysis",
+      "from": "cco:WasteAnalysis",
+      "to": "cco:Recommendation",
+      "precondition": [
+        "WasteAnalysis must be in Detected or Confirmed state",
+        "RecommendationRule must be applicable to waste category",
+        "Savings calculation must be positive"
+      ],
+      "postcondition": [
+        "Recommendation is created with priority and effort",
+        "WasteAnalysis transitions to Confirmed state",
+        "RecommendationGenerated event is emitted"
+      ]
+    },
+    {
+      "id": "cco:ImplementRecommendation",
+      "type": "Operation",
+      "name": "ImplementRecommendation",
+      "description": "Implements a recommendation and updates resource state",
+      "from": "cco:Recommendation",
+      "to": "cco:CloudResource",
+      "precondition": [
+        "Recommendation must be in Pending or InProgress state",
+        "CloudResource must exist and be modifiable",
+        "User authorization must be verified"
+      ],
+      "postcondition": [
+        "Recommendation transitions to Implemented state",
+        "CloudResource state is updated based on action type",
+        "SavingsRealized event is emitted",
+        "WasteAnalysis transitions to Addressed state"
+      ]
+    },
+    {
+      "id": "cco:MonitorResource",
+      "type": "Operation",
+      "name": "MonitorResource",
+      "description": "Continuously monitors resource utilization and cost",
+      "from": "cco:CloudResource",
+      "to": "cco:CloudResource",
+      "precondition": [
+        "CloudResource must be in Active state",
+        "Monitoring metrics must be available"
+      ],
+      "postcondition": [
+        "Resource utilization metrics are updated",
+        "CostThresholdExceeded event may be emitted",
+        "Resource state may transition based on utilization"
+      ]
+    },
+    {
+      "id": "cco:GenerateCostReport",
+      "type": "Operation",
+      "name": "GenerateCostReport",
+      "description": "Generates aggregated cost and savings report",
+      "from": "cco:CloudResource",
+      "to": "cco:CostReport",
+      "precondition": [
+        "Time period must be specified",
+        "CloudResources must exist for the period",
+        "WasteAnalysis data must be available"
+      ],
+      "postcondition": [
+        "CostReport is created with aggregated metrics",
+        "Provider breakdown is calculated",
+        "Waste percentage is computed"
+      ]
+    },
+    {
+      "id": "cco:ValidateRequirement",
+      "type": "Operation",
+      "name": "ValidateRequirement",
+      "description": "Validates that a requirement is properly implemented and verified",
+      "from": "cco:Requirement",
+      "to": "cco:Requirement",
+      "precondition": [
+        "Requirement must be in Implemented state",
+        "All acceptance criteria must be testable",
+        "ServiceComponents must be deployed"
+      ],
+      "postcondition": [
+        "Requirement transitions to Verified state",
+        "Test results are documented",
+        "Implementation is confirmed"
+      ]
+    },
+    {
+      "id": "cco:ResourceActive",
+      "type": "State",
+      "name": "ResourceActive",
+      "description": "Resource is running and being actively used"
+    },
+    {
+      "id": "cco:ResourceIdle",
+      "type": "State",
+      "name": "ResourceIdle",
+      "description": "Resource is running but has low utilization (CPU < 5%, Memory < 10%)"
+    },
+    {
+      "id": "cco:ResourceOversized",
+      "type": "State",
+      "name": "ResourceOversized",
+      "description": "Resource is running but oversized for its workload (CPU < 20%, Memory < 30%)"
+    },
+    {
+      "id": "cco:ResourceStopped",
+      "type": "State",
+      "name": "ResourceStopped",
+      "description": "Resource is stopped but still incurring costs"
+    },
+    {
+      "id": "cco:ResourceZombie",
+      "type": "State",
+      "name": "ResourceZombie",
+      "description": "Resource has not been accessed for over 30 days"
+    },
+    {
+      "id": "cco:ResourceTerminated",
+      "type": "State",
+      "name": "ResourceTerminated",
+      "description": "Resource has been terminated and is no longer incurring costs"
+    },
+    {
+      "id": "cco:WasteDetected",
+      "type": "State",
+      "name": "WasteDetected",
+      "description": "Waste has been detected by an algorithm"
+    },
+    {
+      "id": "cco:WasteConfirmed",
+      "type": "State",
+      "name": "WasteConfirmed",
+      "description": "Waste has been confirmed and recommendation generated"
+    },
+    {
+      "id": "cco:WasteAddressed",
+      "type": "State",
+      "name": "WasteAddressed",
+      "description": "Waste has been addressed through recommendation implementation"
+    },
+    {
+      "id": "cco:WasteFalsePositive",
+      "type": "State",
+      "name": "WasteFalsePositive",
+      "description": "Detected waste was determined to be a false positive"
+    },
+    {
+      "id": "cco:RecommendationPending",
+      "type": "State",
+      "name": "RecommendationPending",
+      "description": "Recommendation has been generated and is awaiting review"
+    },
+    {
+      "id": "cco:RecommendationInProgress",
+      "type": "State",
+      "name": "RecommendationInProgress",
+      "description": "Recommendation is being implemented"
+    },
+    {
+      "id": "cco:RecommendationImplemented",
+      "type": "State",
+      "name": "RecommendationImplemented",
+      "description": "Recommendation has been successfully implemented"
+    },
+    {
+      "id": "cco:RecommendationRejected",
+      "type": "State",
+      "name": "RecommendationRejected",
+      "description": "Recommendation has been rejected and will not be implemented"
+    },
+    {
+      "id": "cco:RecommendationDeferred",
+      "type": "State",
+      "name": "RecommendationDeferred",
+      "description": "Recommendation has been deferred for future consideration"
+    },
+    {
+      "id": "cco:RequirementDraft",
+      "type": "State",
+      "name": "RequirementDraft",
+      "description": "Requirement is being drafted and not yet approved"
+    },
+    {
+      "id": "cco:RequirementApproved",
+      "type": "State",
+      "name": "RequirementApproved",
+      "description": "Requirement has been reviewed and approved for implementation"
+    },
+    {
+      "id": "cco:RequirementImplemented",
+      "type": "State",
+      "name": "RequirementImplemented",
+      "description": "Requirement has been implemented in the system"
+    },
+    {
+      "id": "cco:RequirementVerified",
+      "type": "State",
+      "name": "RequirementVerified",
+      "description": "Requirement implementation has been tested and verified"
+    },
+    {
+      "id": "cco:RequirementRejected",
+      "type": "State",
+      "name": "RequirementRejected",
+      "description": "Requirement has been rejected and will not be implemented"
+    }
+  ]
+}

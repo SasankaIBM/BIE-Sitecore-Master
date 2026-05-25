@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cloud Cost Optimizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Cloud Cost Optimizer Dashboard</h1>
+
+        <!-- Charts Section -->
+        <div class="charts-grid">
+            <div class="card chart-card">
+                <h2>Cost Distribution by Provider</h2>
+                <canvas id="costPieChart"></canvas>
+            </div>
+
+            <div class="card chart-card">
+                <h2>Monthly vs Forecast Costs</h2>
+                <canvas id="costBarChart"></canvas>
+            </div>
+
+            <div class="card chart-card full-width">
+                <h2>Idle Resources Waste Analysis</h2>
+                <canvas id="wasteBarChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tables Section -->
+        <div class="card">
+            <h2>Cloud Costs</h2>
+            <table id="costTable">
+                <thead>
+                    <tr>
+                        <th>Provider</th>
+                        <th>Monthly Cost</th>
+                        <th>Forecast Cost</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Idle Resources</h2>
+            <table id="idleTable">
+                <thead>
+                    <tr>
+                        <th>Resource</th>
+                        <th>Type</th>
+                        <th>Waste</th>
+                        <th>CPU Usage</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Recommendations</h2>
+            <ul id="recommendations"></ul>
+        </div>
+    </div>
+
+</body>
+</html>
+<script>
+    const API_BASE = 'http://localhost:5010/api/cost';
+    
+    let costPieChart, costBarChart, wasteBarChart;
+
+    // Chart color schemes
+    const chartColors = {
+        primary: ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'],
+        secondary: ['rgba(52, 152, 219, 0.8)', 'rgba(231, 76, 60, 0.8)', 'rgba(46, 204, 113, 0.8)']
+    };
+
+    async function loadCosts() {
+        const response = await fetch(`${API_BASE}/costs`);
+        const data = await response.json();
+
+        // Update table
+        const tbody = document.querySelector('#costTable tbody');
+        tbody.innerHTML = '';
+
+        data.forEach(item => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${item.provider}</td>
+                    <td>$${item.monthlyCost.toFixed(2)}</td>
+                    <td>$${item.forecastCost.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+
+        // Update charts
+        updateCostCharts(data);
+    }
+
+    function updateCostCharts(data) {
+        // Pie Chart - Cost Distribution
+        const pieCtx = document.getElementById('costPieChart').getContext('2d');
+        if (costPieChart) costPieChart.destroy();
+        
+        costPieChart = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: data.map(item => item.provider),
+                datasets: [{
+                    label: 'Monthly Cost',
+                    data: data.map(item => item.monthlyCost),
+                    backgroundColor: chartColors.primary,
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': $' + context.parsed.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Bar Chart - Monthly vs Forecast
+        const barCtx = document.getElementById('costBarChart').getContext('2d');
+        if (costBarChart) costBarChart.destroy();
+        
+        costBarChart = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: data.map(item => item.provider),
+                datasets: [
+                    {
+                        label: 'Monthly Cost',
+                        data: data.map(item => item.monthlyCost),
+                        backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Forecast Cost',
+                        data: data.map(item => item.forecastCost),
+                        backgroundColor: 'rgba(231, 76, 60, 0.8)',
+                        borderColor: 'rgba(231, 76, 60, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(0);
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async function loadIdleResources() {
+        const response = await fetch(`${API_BASE}/idle-resources`);
+        const data = await response.json();
+
+        // Update table
+        const tbody = document.querySelector('#idleTable tbody');
+        tbody.innerHTML = '';
+
+        data.forEach(item => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${item.resourceName}</td>
+                    <td>${item.type}</td>
+                    <td>$${item.estimatedWaste.toFixed(2)}</td>
+                    <td>${item.cpuUsage.toFixed(1)}%</td>
+                </tr>
+            `;
+        });
+
+        // Update waste chart
+        updateWasteChart(data);
+    }
+
+    function updateWasteChart(data) {
+        const wasteCtx = document.getElementById('wasteBarChart').getContext('2d');
+        if (wasteBarChart) wasteBarChart.destroy();
+        
+        wasteBarChart = new Chart(wasteCtx, {
+            type: 'bar',
+            data: {
+                labels: data.map(item => item.resourceName),
+                datasets: [{
+                    label: 'Estimated Waste ($)',
+                    data: data.map(item => item.estimatedWaste),
+                    backgroundColor: 'rgba(231, 76, 60, 0.8)',
+                    borderColor: 'rgba(231, 76, 60, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                indexAxis: 'y',
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(0);
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Waste: $' + context.parsed.x.toFixed(2) + ' (CPU: ' + 
+                                       data[context.dataIndex].cpuUsage.toFixed(1) + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async function loadRecommendations() {
+        const response = await fetch(`${API_BASE}/recommendations`);
+        const data = await response.json();
+
+        const list = document.getElementById('recommendations');
+        list.innerHTML = '';
+
+        data.forEach(item => {
+            list.innerHTML += `<li>${item}</li>`;
+        });
+    }
+
+    async function initializeDashboard() {
+        await loadCosts();
+        await loadIdleResources();
+        await loadRecommendations();
+    }
+
+    initializeDashboard();
+    
+    // Refresh data every 30 seconds
+    setInterval(initializeDashboard, 30000);
+</script>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f4f6f9;
+        margin: 0;
+        padding: 20px;
+    }
+
+    .container {
+        max-width: 1400px;
+        margin: auto;
+    }
+
+    h1 {
+        text-align: center;
+        margin-bottom: 30px;
+        color: #2c3e50;
+    }
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .chart-card {
+        min-height: 350px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chart-card canvas {
+        flex: 1;
+        max-height: 300px;
+    }
+
+    .full-width {
+        grid-column: 1 / -1;
+    }
+
+    .card {
+        background: white;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .card h2 {
+        margin-top: 0;
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th, td {
+        padding: 12px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+    }
+
+    th {
+        background: #2c3e50;
+        color: white;
+    }
+
+    tr:hover {
+        background-color: #f5f5f5;
+    }
+
+    ul {
+        padding-left: 20px;
+    }
+
+    li {
+        margin-bottom: 10px;
+        line-height: 1.6;
+    }
+
+    @media (max-width: 768px) {
+        .charts-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .container {
+            padding: 10px;
+        }
+    }
+</style>
